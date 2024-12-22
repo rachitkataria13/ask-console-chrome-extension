@@ -18,68 +18,145 @@ let locale = location.href.split('/')[9].substring(0, 2);
 let historyIndex = -1;
 
 $(document).ready(function () {
-
-    draggableSideBar();
-
-    initButtons();
-
-    $('.askt-input div.astro-form-group-fields label:first-child input').on('change', function () {
+    console.log('[pageTest.js] Document ready, initializing test page functionality');
+    try {
+        draggableSideBar();
         initButtons();
-    });
 
-    $("body").on('DOMSubtreeModified', ".askt-alexa-lang .Select-control .Select-value-label", function() {
-        // workaround! there is always a delay
-        setTimeout(() => {
-            const newLocale = location.href.split('/')[9].substring(0, 2);
-            if (newLocale !== locale) {
-                locale = newLocale;
-            }
+        $('.askt-input div.astro-form-group-fields label:first-child input').on('change', function () {
+            console.log('[pageTest.js] Input field changed, reinitializing buttons');
             initButtons();
-        }, 750);
-
-    });
-
-});
-
-
-async function getStorage() {
-    return new Promise((resolve, reject) => {
-        chrome.storage.sync.get([skillId], function(result) {
-            resolve(result);
-        });
-    })
-}
-async function setStorage() {
-    return new Promise((resolve, reject) => {
-
-        chrome.storage.sync.set({[skillId]: result[skillId]}, function() {
-            $('.request-buttons button[value="'+button+'"]').parent().remove();
-            localeButtons = result[skillId].buttons[locale];
-
-
-        });
-    })
-}
-
-async function updateStorage() {
-    let result = await getStorage();
-    if (result && result[skillId] && result[skillId].buttons) {
-
-        const buttonTextsArray = [];
-
-        $('.asksos-button.post').each(function() {
-            buttonTextsArray.push($(this).text().trim());
         });
 
-        result[skillId].buttons[locale] = buttonTextsArray;
-
-        chrome.storage.sync.set({[skillId]: result[skillId]}, function() {
-            localeButtons = result[skillId].buttons[locale];
+        // Watch for language changes
+        const langObserver = new MutationObserver((mutations) => {
+            try {
+                const newLocale = location.href.split('/')[9].substring(0, 2);
+                console.log(`[pageTest.js][langObserver] Detected language change. New locale: ${newLocale}`);
+                if (newLocale !== locale) {
+                    console.log(`[pageTest.js][langObserver] Updating locale from ${locale} to ${newLocale}`);
+                    locale = newLocale;
+                    initButtons();
+                }
+            } catch (error) {
+                console.error('[pageTest.js][langObserver] Error:', error);
+            }
         });
 
+        // Start observing language changes
+        const langSelector = document.querySelector('.askt-alexa-lang .Select-control');
+        if (langSelector) {
+            console.log('[pageTest.js] Setting up language change observer');
+            langObserver.observe(langSelector, {
+                childList: true,
+                subtree: true,
+                characterData: true
+            });
+        } else {
+            console.log('[pageTest.js] Language selector not found');
+        }
 
+        // Watch for dialog changes
+        const dialogObserver = new MutationObserver((mutations) => {
+            try {
+                mutations.forEach((mutation) => {
+                    if (mutation.addedNodes.length) {
+                        mutation.addedNodes.forEach((node) => {
+                            if (node.nodeType === 1 && // Element node
+                                $(node).hasClass('askt-dialog__message') &&
+                                $(node).hasClass('askt-dialog__message--request')) {
+                                
+                                console.log('[pageTest.js][dialogObserver] New dialog message detected');
+                                $(node).parent().find('.askt-dialog__icon--plus').remove();
+                                $(node).prepend(`<span class="asksos-action-icon repost" title="Repost">${redoImage}</span>`);
+
+                                // show, if it is not saved already
+                                const messageText = $(node).parent().text();
+                                if (!localeButtons || !localeButtons.includes(messageText)) {
+                                    console.log('[pageTest.js][dialogObserver] Adding save button to new message');
+                                    $(node).prepend(`<span class="asksos-action-icon save" title="Add request button">${saveImage}</span>`);
+                                }
+                                
+                                console.log('[pageTest.js][dialogObserver] Adding message to history');
+                                addToHistory(messageText);
+                            }
+                        });
+                    }
+                });
+            } catch (error) {
+                console.error('[pageTest.js][dialogObserver] Error:', error);
+            }
+        });
+
+        // Start observing dialog changes
+        const dialog = document.querySelector('.askt-dialog');
+        if (dialog) {
+            console.log('[pageTest.js] Setting up dialog observer');
+            dialogObserver.observe(dialog, {
+                childList: true,
+                subtree: true
+            });
+        } else {
+            console.log('[pageTest.js] Dialog element not found');
+        }
+
+        // Event handlers for repost and save actions
+        $('.askt-dialog').on('click', '.repost', function() {
+            try {
+                const text = $(this).parent().text();
+                console.log(`[pageTest.js] Reposting message: ${text}`);
+                postText(text);
+            } catch (error) {
+                console.error('[pageTest.js] Repost error:', error);
+            }
+        });
+
+        $('.askt-dialog').on('click', '.save', function() {
+            try {
+                const text = $(this).parent().text();
+                console.log(`[pageTest.js] Saving message as button: ${text}`);
+                saveButton(text);
+            } catch (error) {
+                console.error('[pageTest.js] Save error:', error);
+            }
+        });
+
+        $(".react-autosuggest__input").keydown(function(e) {
+            chrome.storage.sync.get([skillId], function(result) {
+                if (result && result[skillId] && result[skillId].history) {
+                    commandHistory = result[skillId].history[locale];
+                    if(commandHistory) {
+                        switch(e.key) {
+                            case "ArrowUp": historyIndex < commandHistory.length-1 ? historyIndex ++ : historyIndex = 0; break;
+                            case "ArrowDown": historyIndex > 0 ? historyIndex-- : historyIndex = 0; break;
+                            default: return;
+                        }
+                    }
+
+                    // Trigger the change event on the input
+                    var ev = new Event('input', { bubbles: true});
+                    ev.simulated = true;
+                    $(".react-autosuggest__input")[0].value = commandHistory[historyIndex];
+                    $(".react-autosuggest__input")[0].dispatchEvent(ev);
+                }
+            });
+        });
+
+        // Clean up observers when extension context changes
+        window.addEventListener('unload', () => {
+            try {
+                console.log('[pageTest.js] Cleaning up observers');
+                if (langObserver) langObserver.disconnect();
+                if (dialogObserver) dialogObserver.disconnect();
+            } catch (error) {
+                console.error('[pageTest.js] Cleanup error:', error);
+            }
+        });
+
+    } catch (error) {
+        console.error('[pageTest.js] Initialization error:', error);
     }
-}
+});
 
 /**
  * Gets buttons from storage and adds to container
@@ -121,54 +198,6 @@ function initButtons() {
     });
     $('.request-buttons').on('click','button.remove', function() {
         removeButton($(this).val());
-    });
-
-
-    $(".askt-dialog").bind("DOMNodeInserted",function(el){
-        if($(el.target).hasClass('askt-dialog__message') &&
-            $(el.target).hasClass('askt-dialog__message--request')) {
-
-            $(el.target).parent().find('.askt-dialog__icon--plus').remove();
-            $(el.target).prepend(`<span class="asksos-action-icon repost" title="Repost">${redoImage}</span>`);
-
-            // show, if it is not saved already
-            if (!localeButtons || !localeButtons.includes($(el.target).parent().text())) {
-                $(el.target).prepend(`<span class="asksos-action-icon save" title="Add request button">${saveImage}</span>`);
-            }
-            //add to history
-            addToHistory($(el.target).parent().text());
-        }
-    });
-    // $('.askt-dialog').off();
-    $('.askt-dialog').on('click', '.repost', function() {
-        const text = $(this).parent().text();
-        postText(text);
-    });
-
-    $('.askt-dialog').on('click', '.save', function() {
-        const text = $(this).parent().text();
-        saveButton(text);
-    });
-
-    $(".react-autosuggest__input").keydown(function(e) {
-        chrome.storage.sync.get([skillId], function(result) {
-            if (result && result[skillId] && result[skillId].history) {
-                commandHistory = result[skillId].history[locale];
-                if(commandHistory) {
-                    switch(e.key) {
-                        case "ArrowUp": historyIndex < commandHistory.length-1 ? historyIndex ++ : historyIndex = 0; break;
-                        case "ArrowDown": historyIndex > 0 ? historyIndex-- : historyIndex = 0; break;
-                        default: return;
-                    }
-                }
-
-                // Trigger the change event on the input
-                var ev = new Event('input', { bubbles: true});
-                ev.simulated = true;
-                $(".react-autosuggest__input")[0].value = commandHistory[historyIndex];
-                $(".react-autosuggest__input")[0].dispatchEvent(ev);
-            }
-        });
     });
 
 }
@@ -227,19 +256,23 @@ function saveButton(text) {
 
     // get object for given skill id
     chrome.storage.sync.get([skillId], function(result) {
-        if (result && result[skillId] && result[skillId].buttons) {
+        if (result && result[skillId] && result[skillId].buttons && result[skillId].buttons[locale]) {
             localeButtons = result[skillId].buttons[locale];
-
+            let flagAddedNew = false;
             // push to existing or create new
             if (localeButtons) {
                 if (!localeButtons.includes(text)) {
                     localeButtons.push(text);
+                    flagAddedNew = true;
                 }
             } else {
                 result[skillId].buttons[locale] = [text];
+                flagAddedNew = true;
             }
             chrome.storage.sync.set({[skillId]: result[skillId]}, function () {
-                addButton(text);
+                if (flagAddedNew) {
+                    addButton(text);
+                }
             });
         } else if (result && result[skillId]) {
             result[skillId].buttons = {
@@ -263,7 +296,7 @@ function saveButton(text) {
         }
     });
 }
-//
+
 /**
  * Add new entry to history
  * @param text
