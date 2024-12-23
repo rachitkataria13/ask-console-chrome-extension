@@ -1,5 +1,17 @@
 const locationSplitTest = location.href.split('/');
 
+const debounce = (fn, delay) => {
+    let timeoutId;
+    return (...args) => {
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+        }
+        timeoutId = setTimeout(() => {
+            fn(...args);
+        }, delay);
+    };
+};
+
 // load only in simulator
 if (locationSplitTest.length >= 7 && locationSplitTest[6] === 'test') {
 
@@ -10,7 +22,38 @@ const redoImage = `<img src="data:image/svg+xml;utf8;base64,PD94bWwgdmVyc2lvbj0i
 const saveImage = `<img src="data:image/svg+xml;utf8;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8c3ZnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHZlcnNpb249IjEuMSIgdmlld0JveD0iMCAwIDIyNi4yMTYgMjI2LjIxNiIgZW5hYmxlLWJhY2tncm91bmQ9Im5ldyAwIDAgMjI2LjIxNiAyMjYuMjE2IiB3aWR0aD0iMTZweCIgaGVpZ2h0PSIxNnB4Ij4KICA8Zz4KICAgIDxwYXRoIGQ9Im0yMTcuNTE1LDEwNC40MDdoLTk1LjcwN3YtOTUuNzA2YzAtNS4yMi0zLjQ4LTguNzAxLTguNzAxLTguNzAxcy04LjcwMSwzLjQ4LTguNzAxLDguNzAxdjk1LjcwN2gtOTUuNzA1Yy01LjIyLDAtOC43MDEsMy40OC04LjcwMSw4LjcwMXMzLjQ4LDguNzAxIDguNzAxLDguNzAxaDk1LjcwN3Y5NS43MDdjMCw1LjIyIDMuNDgsOC43MDEgOC43MDEsOC43MDFzOC43MDEtMy40OCA4LjcwMS04LjcwMXYtOTUuNzA3aDk1LjcwN2M1LjIyLDAgOC43MDEtMy40OCA4LjcwMS04LjcwMXMtMy40ODMtOC43MDItOC43MDMtOC43MDJ6IiBmaWxsPSIjMDAwMDAwIi8+CiAgPC9nPgo8L3N2Zz4K" />`;
 
 const skillId = location.href.split('/')[7];
-const locale = location.href.split('/')[9].substring(0, 2);
+const localesMap = {
+    'English (IN)': 'en_IN',
+    'English (AU)': 'en_AU',
+    'English (US)': 'en_US',
+    'English (CA)': 'en_CA',
+    'English (UK)': 'en_GB',
+    'English (GB)': 'en_GB',
+    'English (IE)': 'en_IE',
+    'English (NZ)': 'en_NZ',
+    'German (DE)': 'de_DE',
+    'Portuguese (BR)': 'pt_BR',
+    'French (CA)': 'fr_CA',
+    'French (FR)': 'fr_FR',
+    'Spanish (MX)': 'es_MX',
+    'Spanish (ES)': 'es_ES',
+    'Spanish (US)': 'es_US',
+    'Italian (IT)': 'it_IT',
+    'Japanese (JP)': 'ja_JP',
+    'Hindi (IN)': 'hi_IN',
+    'Arabic (SA)': 'ar_SA',
+    'Dutch (NL)': 'nl_NL',
+    'Swedish (SE)': 'sv_SE',
+    'Norwegian (NO)': 'no_NO',
+    'Danish (DK)': 'da_DK',
+    'Finnish (FI)': 'fi_FI',
+    'Polish (PL)': 'pl_PL',
+    'Korean (KR)': 'ko_KR',
+    'Turkish (TR)': 'tr_TR',
+    'Chinese (CN)': 'zh_CN',
+    'Chinese (TW)': 'zh_TW',
+};
+
 let historyIndex = -1;
 
 // Storage utilities
@@ -22,16 +65,22 @@ const storage = {
     ),
     save: (skillId, data) => new Promise(resolve => 
         chrome.storage.sync.set({ [skillId]: data }, resolve)
+    ),
+    clear: () => new Promise(resolve => 
+        chrome.storage.sync.clear(resolve)
     )
 };
 
 // Button utilities
 const buttons = {
-    add: text => {
+    add: debounce(text => {
         if (!$('.request-buttons').length) {
             $('<div class="request-buttons"></div>').insertAfter('.askt-simulator__input');
         }
-        
+        const existingButton = $('.request-buttons .button-container button.post[value="' + text + '"]');
+        if (existingButton.length) {
+            return;
+        }
         $('<div class="button-container"></div>')
             .append([
                 $('<button>', {
@@ -50,10 +99,12 @@ const buttons = {
                 })
             ])
             .appendTo('.request-buttons');
-    },
-    
+    }, 500),
     remove: async text => {
         const data = await storage.get(skillId);
+        let locale = data.locale|| "unknown"
+
+
         if (data.buttons[locale]) {
             data.buttons[locale] = data.buttons[locale].filter(t => t !== text);
             await storage.save(skillId, data);
@@ -63,7 +114,11 @@ const buttons = {
     
     save: async text => {
         if (!text) return;
+
+        text = text.replace(/[\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
+
         const data = await storage.get(skillId);
+        let locale = data.locale|| "unknown"
         
         if (!data.buttons[locale]?.includes(text)) {
             data.buttons[locale] = [...(data.buttons[locale] || []), text];
@@ -73,8 +128,9 @@ const buttons = {
     },
     
     init: async () => {
-        $('.request-buttons').remove();
+        $('.request-buttons.ui-sortable').remove();
         const data = await storage.get(skillId);
+        let locale = data.locale|| "unknown"
         
         if (data.buttons[locale]?.length) {
             data.buttons[locale].forEach(buttons.add);
@@ -87,34 +143,55 @@ const buttons = {
     
     updateOrder: async () => {
         const data = await storage.get(skillId);
+        let locale = data.locale|| "unknown"
+
+
         data.buttons[locale] = $('.request-buttons .button-container button.post')
             .map((_, el) => $(el).val()).get();
         await storage.save(skillId, data);
+    },
+    
+    reset() {
+        $('.request-buttons').remove();
+        $('.button-placeholder').remove();
     }
 };
 
 // Observer utilities
 const observers = {
-    setupLanguage: () => {
-        const langObserver = new MutationObserver(() => {
-            const newLocale = location.href.split('/')[9].substring(0, 2);
-            if (newLocale !== locale) {
-                locale = newLocale;
-                buttons.init();
-            }
+    setupLanguage: async () => {
+        // Adding a MutationObserver to check for language changes
+        const languageObserver = new MutationObserver(async (mutations) => {
+            mutations.forEach(async (mutation) => {
+                if (mutation.type === 'childList' || mutation.type === 'characterData') {
+                    const langElement = document.querySelector('.askt-alexa-lang .Select-value');
+                    if (langElement) {
+                        const currentLanguage = langElement.innerText;
+                        console.log('Detected language change:', currentLanguage);
+                        // Reset buttons and reload suggestions
+                        let data = await storage.get(skillId);
+                        let locale = localesMap[currentLanguage] || 'unknown';
+                        await storage.save(skillId, { ...data, locale });
+
+                        buttons.reset();
+                        await buttons.init();
+                    }
+                }
+            });
         });
 
-        const langSelector = document.querySelector('.askt-alexa-lang .Select-control');
-        if (langSelector) {
-            langObserver.observe(langSelector, {
-                childList: true,
+        // Start observing the specified element for changes
+        const targetNode = document.querySelector('.askt-alexa-lang .Select-value');
+        if (targetNode) {
+            languageObserver.observe(targetNode, { 
+                childList: true, 
                 subtree: true,
-                characterData: true
+                characterData: true 
             });
-            return langObserver;
+            return languageObserver;
         }
     },
-
+    
     setupDialog: () => {
         const dialogObserver = new MutationObserver(mutations => {
             mutations.forEach(mutation => {
@@ -126,6 +203,7 @@ const observers = {
                         const $node = $(node);
                         const messageText = $node.parent().text().trim();
                         const data = await storage.get(skillId);
+                        let locale = data.locale|| "unknown"
                         const isButtonSaved = data.buttons[locale]?.includes(messageText);
                         
                         $node.parent().find('.askt-dialog__icon--plus').remove();
@@ -167,20 +245,51 @@ const observers = {
 // Initialize
 $(document).ready(async () => {
     try {
-        const activeObservers = [
+        let activeObservers = await Promise.all([
             observers.setupLanguage(),
             observers.setupDialog()
-        ].filter(Boolean);
+        ])
+        activeObservers = activeObservers.filter(Boolean);
 
         await buttons.init();
         
         // Event handlers
         $('.askt-dialog')
-            .on('click', '.repost', e => postText($(e.target).parent().text()))
-            .on('click', '.save', e => buttons.save($(e.target).parent().text()));
+            .on('click', '.repost', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                const $target = $(e.target).closest('.askt-dialog__message');
+                const text = $target.text().trim();
+                console.log({
+                    e,
+                    $target,
+                    text
+                });
+
+                if (text) {
+                    postText(text);
+                }
+            })
+            .on('click', '.save', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                const $target = $(e.target).closest('.askt-dialog__message');
+                const text = $target.text().trim();
+                console.log({
+                    e,
+                    $target,
+                    text
+                });
+
+                if (text) {
+                    buttons.save(text);
+                }
+            });
 
         $('#astro-input-0').on('keydown', async e => {
             const data = await storage.get(skillId);
+            let locale = data.locale|| "unknown"
+
             const history = data.history[locale] || [];
             
             switch(e.key) {
@@ -210,8 +319,12 @@ $(document).ready(async () => {
         });
 
         // Cleanup on unload
-        window.addEventListener('unload', () => 
-            activeObservers.forEach(observer => observer?.disconnect())
+        window.addEventListener('beforeunload', () => 
+            activeObservers.forEach(observer => {
+                if (observer) {
+                    observer.disconnect && observer.disconnect();
+                }
+            })
         );
         
     } catch (error) {
@@ -224,6 +337,7 @@ $(document).ready(async () => {
  * @param text
  */
 function postText(text) {
+    text = text.replace(/[\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
 
     console.log('posting: ' + text);
     $('.react-autosuggest__input').val(text).change();
@@ -237,53 +351,6 @@ function postText(text) {
         bubbles: true, cancelable: true, keyCode: 13, key: 'Enter'
     });
     $('.react-autosuggest__input')[0].dispatchEvent(keypress);
-}
-
-/**
- * Add new entry to history
- * @param text
- */
-function addToHistory(text) {
-    // Get object for given skill id
-    chrome.storage.sync.get([skillId], function(result) {
-        // Set index back to starting point
-        historyIndex = -1;
-        if (result && result[skillId] && result[skillId].history) {
-            commandHistory = result[skillId].history[locale];
-            // Add entry to front, and remove it if already exists
-            if (commandHistory) {
-                let index = commandHistory.indexOf(text);
-                if (index >= 0) {
-                    commandHistory.splice(index, 1);
-                }
-                // Cap length at 50 to prevent this from growing too large.
-                if (commandHistory.length > 50) {
-                    commandHistory.length = 50;
-                }
-                commandHistory.unshift(text);
-            } else {
-                result[skillId].history[locale] = [text];
-            }
-            chrome.storage.sync.set({[skillId]: result[skillId]});
-        } else if (result && result[skillId]) { // create new object for given skill id
-
-            result[skillId].history = {
-                [locale]: [text]
-            };
-
-            chrome.storage.sync.set({[skillId]: result[skillId]});
-        } else {
-            const obj = {
-                buttons: {
-                    [locale]: []
-                },
-                history: {
-                    [locale]: [text]
-                },
-            };
-            chrome.storage.sync.set({[skillId]: obj})
-        }
-    });
 }
 
 function draggableSideBar() {
@@ -306,4 +373,5 @@ function draggableSideBar() {
             dragging = false;
         }
     });
-}}
+}
+}
