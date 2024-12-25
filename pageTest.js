@@ -22,46 +22,16 @@ const redoImage = `<img src="data:image/svg+xml;utf8;base64,PD94bWwgdmVyc2lvbj0i
 const saveImage = `<img src="data:image/svg+xml;utf8;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8c3ZnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHZlcnNpb249IjEuMSIgdmlld0JveD0iMCAwIDIyNi4yMTYgMjI2LjIxNiIgZW5hYmxlLWJhY2tncm91bmQ9Im5ldyAwIDAgMjI2LjIxNiAyMjYuMjE2IiB3aWR0aD0iMTZweCIgaGVpZ2h0PSIxNnB4Ij4KICA8Zz4KICAgIDxwYXRoIGQ9Im0yMTcuNTE1LDEwNC40MDdoLTk1LjcwN3YtOTUuNzA2YzAtNS4yMi0zLjQ4LTguNzAxLTguNzAxLTguNzAxcy04LjcwMSwzLjQ4LTguNzAxLDguNzAxdjk1LjcwN2gtOTUuNzA1Yy01LjIyLDAtOC43MDEsMy40OC04LjcwMSw4LjcwMXMzLjQ4LDguNzAxIDguNzAxLDguNzAxaDk1LjcwN3Y5NS43MDdjMCw1LjIyIDMuNDgsOC43MDEgOC43MDEsOC43MDFzOC43MDEtMy40OCA4LjcwMS04LjcwMXYtOTUuNzA3aDk1LjcwN2M1LjIyLDAgOC43MDEtMy40OCA4LjcwMS04LjcwMXMtMy40ODMtOC43MDItOC43MDMtOC43MDJ6IiBmaWxsPSIjMDAwMDAwIi8+CiAgPC9nPgo8L3N2Zz4K" />`;
 
 const skillId = location.href.split('/')[7];
-const localesMap = {
-    'English (IN)': 'en_IN',
-    'English (AU)': 'en_AU',
-    'English (US)': 'en_US',
-    'English (CA)': 'en_CA',
-    'English (UK)': 'en_GB',
-    'English (GB)': 'en_GB',
-    'English (IE)': 'en_IE',
-    'English (NZ)': 'en_NZ',
-    'German (DE)': 'de_DE',
-    'Portuguese (BR)': 'pt_BR',
-    'French (CA)': 'fr_CA',
-    'French (FR)': 'fr_FR',
-    'Spanish (MX)': 'es_MX',
-    'Spanish (ES)': 'es_ES',
-    'Spanish (US)': 'es_US',
-    'Italian (IT)': 'it_IT',
-    'Japanese (JP)': 'ja_JP',
-    'Hindi (IN)': 'hi_IN',
-    'Arabic (SA)': 'ar_SA',
-    'Dutch (NL)': 'nl_NL',
-    'Swedish (SE)': 'sv_SE',
-    'Norwegian (NO)': 'no_NO',
-    'Danish (DK)': 'da_DK',
-    'Finnish (FI)': 'fi_FI',
-    'Polish (PL)': 'pl_PL',
-    'Korean (KR)': 'ko_KR',
-    'Turkish (TR)': 'tr_TR',
-    'Chinese (CN)': 'zh_CN',
-    'Chinese (TW)': 'zh_TW',
-};
 
 let historyIndex = -1;
 
 // Storage utilities
 const storage = {
     get: skillId => new Promise(resolve => 
-        chrome.storage.sync.get([skillId], result => 
+        chrome.storage.sync.get([skillId], result => {
+            let locale = result.locale;
             resolve(result?.[skillId] || { buttons: {}, history: { [locale]: [] } })
-        )
+        })
     ),
     save: (skillId, data) => new Promise(resolve => 
         chrome.storage.sync.set({ [skillId]: data }, resolve)
@@ -167,10 +137,9 @@ const observers = {
                     const langElement = document.querySelector('.askt-alexa-lang .Select-value');
                     if (langElement) {
                         const currentLanguage = langElement.innerText;
-                        console.log('Detected language change:', currentLanguage);
                         // Reset buttons and reload suggestions
                         let data = await storage.get(skillId);
-                        let locale = localesMap[currentLanguage] || 'unknown';
+                        let locale = currentLanguage;
                         await storage.save(skillId, { ...data, locale });
 
                         buttons.reset();
@@ -260,11 +229,6 @@ $(document).ready(async () => {
                 e.stopPropagation();
                 const $target = $(e.target).closest('.askt-dialog__message');
                 const text = $target.text().trim();
-                console.log({
-                    e,
-                    $target,
-                    text
-                });
 
                 if (text) {
                     postText(text);
@@ -275,11 +239,6 @@ $(document).ready(async () => {
                 e.stopPropagation();
                 const $target = $(e.target).closest('.askt-dialog__message');
                 const text = $target.text().trim();
-                console.log({
-                    e,
-                    $target,
-                    text
-                });
 
                 if (text) {
                     buttons.save(text);
@@ -328,7 +287,7 @@ $(document).ready(async () => {
         );
         
     } catch (error) {
-        console.error('[pageTest.js] Error:', error);
+        console.error('TestPage Error:', error);
     }
 });
 

@@ -11,6 +11,9 @@ const localesMap = {
     'English (US)': 'en_US',
     'English (CA)': 'en_CA',
     'English (UK)': 'en_GB',
+    'English (GB)': 'en_GB',
+    'English (IE)': 'en_IE',
+    'English (NZ)': 'en_NZ',
     'German (DE)': 'de_DE',
     'Portuguese (BR)': 'pt_BR',
     'French (CA)': 'fr_CA',
@@ -19,8 +22,19 @@ const localesMap = {
     'Spanish (ES)': 'es_ES',
     'Spanish (US)': 'es_US',
     'Italian (IT)': 'it_IT',
-    'Japanese (JP)': 'jp_JP',
+    'Japanese (JP)': 'ja_JP',
     'Hindi (IN)': 'hi_IN',
+    'Arabic (SA)': 'ar_SA',
+    'Dutch (NL)': 'nl_NL',
+    'Swedish (SE)': 'sv_SE',
+    'Norwegian (NO)': 'no_NO',
+    'Danish (DK)': 'da_DK',
+    'Finnish (FI)': 'fi_FI',
+    'Polish (PL)': 'pl_PL',
+    'Korean (KR)': 'ko_KR',
+    'Turkish (TR)': 'tr_TR',
+    'Chinese (CN)': 'zh_CN',
+    'Chinese (TW)': 'zh_TW',
 };
 
 // Observer utilities
@@ -90,7 +104,7 @@ const observers = {
                         subtree: true
                     });
                 } else {
-                    console.warn('[pageIndex.js][startObserving] Container element not found');
+                    console.warn('[IndexPage][startObserving] Container element not found');
                 }
             }
         };
@@ -102,7 +116,7 @@ const observers = {
             try {
                 observer.disconnect();
             } catch (error) {
-                console.error('[pageIndex.js][unload] Error during cleanup:', error.message, error);
+                console.error('[IndexPage][unload] Error during cleanup:', error.message, error);
             }
         });
     }
@@ -122,7 +136,7 @@ function processSkillRow($row) {
     if (skillNameLink.length > 0) {
         const skillNameHref = skillNameLink.attr('href');
         if (!skillNameHref) {
-            console.warn('[pageIndex.js][processSkillRow] Skill name href not found in row');
+            console.warn('[IndexPage][processSkillRow] Skill name href not found in row');
             return;
         }
 
@@ -136,7 +150,7 @@ function processSkillRow($row) {
         const stage = stageMatch ? stageMatch[0] : 'development';
 
         if (!skillId) {
-            console.warn('[pageIndex.js][processSkillRow] Could not extract skill ID from:', skillNameHref);
+            console.warn('[IndexPage][processSkillRow] Could not extract skill ID from:', skillNameHref);
             return;
         }
 
@@ -156,7 +170,7 @@ function processSkillRow($row) {
             });
             skillNameLink.after($testLink);
         } else {
-            console.warn(`[pageIndex.js][processSkillRow] Test link already exists for skill ${skillId}`);
+            console.warn(`[IndexPage][processSkillRow] Test link already exists for skill ${skillId}`);
         }
 
         // Process locales if multiple exist
@@ -179,12 +193,12 @@ function processSkillRow($row) {
                     }
                     $localeCell.append($localeLink);
                 } else {
-                    console.warn(`[pageIndex.js][processSkillRow] Locale mapping not found for: ${trimmedItem}`);
+                    console.warn(`[IndexPage][processSkillRow] Locale mapping not found for: ${trimmedItem}`);
                 }
             });
         }
     } else {
-        console.warn('[pageIndex.js][processSkillRow] Skill name link not found in row');
+        console.warn('[IndexPage][processSkillRow] Skill name link not found in row');
     }
 }
 
